@@ -1,0 +1,40 @@
+RIFF(.{4}SPRITE
+SPRITE DESCRIPTION FILE
+
+This file contains sprites (icons) for the !SQLite application.
+
+In a production RISC OS application, this would be a binary sprite file created with:
+- RISC OS Sprite Editor
+- A sprite creation tool
+- OR encoded as a resource
+
+For this implementation, we provide a text description of the sprite format.
+
+Sprite Details:
+- Name: !SQLite (main application icon)
+- Size: 32x32 pixels or 48x48 pixels
+- Color Mode: 256-color palette or 16-color
+- Alternate Name: !SQLite22 (22x22 version for small toolbar)
+
+Design Concept:
+- Database icon (disk/folder symbol)
+- SQL/database visualization
+- Colors: Blue (database) with white accents
+
+To create the sprite file, use:
+1. RISC OS Sprite Editor (native RISC OS tool)
+2. Create 32x32 and 48x48 pixel sprites
+3. Name them !SQLite and !SQLite22
+4. Save as binary sprite file
+
+RISC OS Sprite File Format:
+- Header: "RIFF" + file size + "SPRITE"
+- Sprite area: Sprite definitions with palette
+- Each sprite: Name, dimensions, mode, data
+
+For deployment without proper sprites:
+- Remove this file, OS will use generic application icon
+- Application will still function normally
+- Consider creating proper sprites for professional deployment
+
+See RISC OS development documentation for sprite file format details.

@@ -1,0 +1,21 @@
+| !SQLite !Boot file
+| RISC OS application boot script
+| Sets up environment and memory allocation
+|
+| This file is run when the application is first seen by the file manager
+
+| Set up application path
+Set SQLite$Dir <Obey$Dir>
+
+| Configure memory
+| WimpSlot sets the minimum and maximum memory for the application
+| Format: WimpSlot -min <minimum>K -max <maximum>K
+|
+| SQLite requirements:
+|   Minimum: 2MB for safe operation
+|   Maximum: 4MB to stay within system limits
+|   Target: 2-3MB for typical databases
+
+WimpSlot -min 2048K -max 3072K
+
+| End of !Boot

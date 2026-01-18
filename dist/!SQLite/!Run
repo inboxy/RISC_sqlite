@@ -1,0 +1,38 @@
+| !SQLite !Run file
+| RISC OS application run script
+| Executes SQLite when user double-clicks the application
+|
+| Usage: Click on !SQLite icon to launch interactive SQLite shell
+|        Pass database name as parameter to open specific database
+
+| Get the application directory
+Set SQLite$Dir <Obey$Dir>
+
+| Check if SQLite executable exists
+If "<SQLite$Dir>.sqlite,ff8" FileType 0 Then
+  |
+  | Executable found - run SQLite in a task window
+  |
+
+  | Get database filename parameter if provided
+  If "<0>" = "" Then
+    |
+    | No parameter provided - open interactive shell with in-memory database
+    |
+    TaskWindow -Name "SQLite 2.8.17" -File <SQLite$Dir>.sqlite,ff8 -Exit
+  Else
+    |
+    | Parameter provided - open specified database file
+    |
+    TaskWindow -Name "SQLite 2.8.17" -File <SQLite$Dir>.sqlite,ff8 "<0>" -Exit
+  EndIf
+
+Else
+  |
+  | Executable not found - show error
+  |
+  Error "Cannot find SQLite executable at:<SQLite$Dir>.sqlite,ff8"
+
+EndIf
+
+| End of !Run

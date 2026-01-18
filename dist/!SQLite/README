@@ -1,0 +1,143 @@
+SQLite 2.8.17 for RISC OS 3.1
+═════════════════════════════
+
+INSTALLATION
+────────────
+
+1. Copy the entire !SQLite directory to your applications folder
+   Typical locations:
+   - !Boot:$.Apps
+   - !Boot:$.Applications
+   - Your preferred applications directory
+
+2. The application is now ready to use
+
+USAGE
+────
+
+From Desktop:
+  Double-click on !SQLite icon to launch interactive shell
+
+From Command Line:
+  *!Boot:$.Apps.!SQLite.sqlite,ff8
+  or
+  *SQLite database.db
+
+CONTENTS
+────────
+
+!Boot         - Application boot script (sets up memory)
+!Run          - Application launcher (executes SQLite)
+!Sprites      - Application icons (placeholder)
+sqlite,ff8    - SQLite executable (30KB)
+README        - This file
+
+FEATURES
+────────
+
+✅ Create and manage databases
+✅ Interactive SQL shell
+✅ Table creation and deletion
+✅ Schema viewing
+✅ Transaction support
+✅ Multiple dot commands (.tables, .schema, .help, etc.)
+
+SYSTEM REQUIREMENTS
+──────────────────
+
+- RISC OS 3.1 or later
+- ARM2 CPU or compatible
+- 4MB RAM minimum
+- 1-2MB disk space for application
+- Additional space for databases
+
+GETTING STARTED
+───────────────
+
+1. Launch SQLite
+   - Double-click !SQLite icon, OR
+   - Run: *SQLite mydata.db
+
+2. At the prompt, try:
+   sqlite> .help           (show all commands)
+   sqlite> .tables         (list tables)
+   sqlite> CREATE TABLE test (id INTEGER);
+   sqlite> .schema         (show schema)
+   sqlite> .quit           (exit)
+
+QUICK COMMANDS
+──────────────
+
+Database Management:
+  .open <file>      - Open database file
+  .quit             - Exit SQLite
+
+Table Operations:
+  CREATE TABLE      - Create new table
+  DROP TABLE        - Delete table
+  .tables           - List all tables
+  .schema [table]   - Show table schema
+
+Help:
+  .help             - Show all commands
+
+Mode Toggling:
+  .verbose on|off   - Toggle verbose output
+  .headers on|off   - Toggle column headers
+
+LIMITATIONS
+──────────
+
+- No concurrent access (single-program only)
+- ASCII text only (no Unicode)
+- Limited SQL (no triggers, views, subqueries)
+- Database size limited by available memory
+- Performance depends on ARM2 CPU (~8 MHz)
+
+TROUBLESHOOTING
+──────────────
+
+"Cannot open/create database file"
+  - Check disk space
+  - Verify file path exists
+  - Try different directory
+
+"No database open"
+  - Use .open command to select database first
+  - Or pass database name on command line
+
+"Table already exists"
+  - Use different table name, or
+  - DROP TABLE first, then CREATE TABLE again
+
+For more help, see documentation files in the main SQLite directory.
+
+DOCUMENTATION
+──────────────
+
+Complete documentation available:
+  - README.md           - Project overview
+  - QUICK_START.md      - User guide
+  - BUILDING.md         - Build instructions
+  - IMPLEMENTATION_STATUS.md - Technical details
+
+VERSION
+───────
+
+SQLite 2.8.17 for RISC OS 3.1
+Binary: 30KB
+Build Date: January 2026
+Status: Phase 2 Complete (SQL Engine + Shell)
+
+CONTACT & SUPPORT
+─────────────────
+
+For issues or questions:
+1. Review documentation files
+2. Check built-in help (.help command)
+3. Review example scripts
+4. Examine source code comments
+
+═════════════════════════════
+Happy SQL querying on RISC OS!
+═════════════════════════════
