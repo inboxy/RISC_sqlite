@@ -51,11 +51,20 @@ typedef struct {
     int not_null;
 } column_def_t;
 
+/* Table row data - stores actual values */
+typedef struct {
+    char **values;  /* Array of string values for each column */
+} table_row_t;
+
 /* Table definition */
 typedef struct {
     char name[MAX_TABLE_NAME];
     int num_columns;
     column_def_t columns[MAX_COLUMNS];
+    /* Row data storage */
+    table_row_t *rows;  /* Array of rows */
+    int num_rows;       /* Current number of rows */
+    int row_capacity;   /* Allocated capacity for rows */
 } table_def_t;
 
 /* Result row (simple array of strings) */
@@ -93,9 +102,15 @@ struct sqlite {
 /*
 ** Forward declarations for helper functions
 */
-static int parse_sql_statement(sqlite *db, const char *sql, char **errmsg);
+static int parse_sql_statement(sqlite *db, const char *sql,
+                               int (*callback)(void*,int,char**,char**),
+                               void *arg, char **errmsg);
 static int execute_create_table(sqlite *db, const char *sql, char **errmsg);
 static int execute_drop_table(sqlite *db, const char *sql, char **errmsg);
+static int execute_insert(sqlite *db, const char *sql, char **errmsg);
+static int execute_select(sqlite *db, const char *sql,
+                          int (*callback)(void*,int,char**,char**),
+                          void *arg, char **errmsg);
 
 /*
 ** Utility: Skip whitespace and return pointer to next non-whitespace char
@@ -188,8 +203,6 @@ sqlite *sqlite_open(const char *filename, int mode, char **errmsg)
 */
 void sqlite_close(sqlite *db)
 {
-    int i;
-
     if (!db) return;
 
     if (db->is_open && db->dbfile.handle != 0) {
@@ -200,8 +213,26 @@ void sqlite_close(sqlite *db)
         riscos_free(db->filename);
     }
 
-    /* Free table definitions */
+    /* Free table definitions and their data */
     if (db->tables) {
+        int t, r, c;
+        for (t = 0; t < db->num_tables; t++) {
+            table_def_t *table = &db->tables[t];
+            /* Free row data */
+            if (table->rows) {
+                for (r = 0; r < table->num_rows; r++) {
+                    if (table->rows[r].values) {
+                        for (c = 0; c < table->num_columns; c++) {
+                            if (table->rows[r].values[c]) {
+                                riscos_free(table->rows[r].values[c]);
+                            }
+                        }
+                        riscos_free(table->rows[r].values);
+                    }
+                }
+                riscos_free(table->rows);
+            }
+        }
         riscos_free(db->tables);
     }
 
@@ -264,6 +295,11 @@ static int execute_create_table(sqlite *db, const char *sql, char **errmsg)
     strcpy(table->name, table_name);
     table->num_columns = 0;
 
+    /* Initialize row storage */
+    table->rows = NULL;
+    table->num_rows = 0;
+    table->row_capacity = 0;
+
     /* Very simplified: we'd parse column definitions here */
     /* For now, just create an empty table */
 
@@ -302,6 +338,22 @@ static int execute_drop_table(sqlite *db, const char *sql, char **errmsg)
         return SQLITE_ERROR;
     }
 
+    /* Free row data */
+    if (table->rows) {
+        int r, c;
+        for (r = 0; r < table->num_rows; r++) {
+            if (table->rows[r].values) {
+                for (c = 0; c < table->num_columns; c++) {
+                    if (table->rows[r].values[c]) {
+                        riscos_free(table->rows[r].values[c]);
+                    }
+                }
+                riscos_free(table->rows[r].values);
+            }
+        }
+        riscos_free(table->rows);
+    }
+
     /* Remove by shifting remaining tables */
     for (i = 0; i < db->num_tables; i++) {
         if (strcasecmp(db->tables[i].name, table_name) == 0) {
@@ -318,9 +370,241 @@ static int execute_drop_table(sqlite *db, const char *sql, char **errmsg)
 }
 
 /*
+** Execute INSERT statement
+** Simple parser for: INSERT INTO table VALUES (val1, val2, ...)
+*/
+static int execute_insert(sqlite *db, const char *sql, char **errmsg)
+{
+    const char *p;
+    char table_name[MAX_TABLE_NAME];
+    table_def_t *table;
+    table_row_t new_row;
+    char value_buf[256];
+    int i, val_idx;
+
+    p = sql;
+    /* Skip "INSERT INTO" */
+    p = skip_whitespace(p + 6);  /* Skip "INSERT" */
+    if (!keyword_match(p, "INTO")) {
+        if (errmsg) *errmsg = "Expected INTO after INSERT";
+        return SQLITE_ERROR;
+    }
+    p = skip_whitespace(p + 4);  /* Skip "INTO" */
+
+    /* Extract table name */
+    i = 0;
+    while (*p && *p != '(' && !isspace(*p) && i < MAX_TABLE_NAME - 1) {
+        table_name[i++] = *p++;
+    }
+    table_name[i] = '\0';
+
+    if (i == 0) {
+        if (errmsg) *errmsg = "Missing table name in INSERT";
+        return SQLITE_ERROR;
+    }
+
+    /* Find table */
+    table = find_table(db, table_name);
+    if (!table) {
+        if (errmsg) *errmsg = "Table not found";
+        return SQLITE_ERROR;
+    }
+
+    /* For simplified implementation, assume table has at least one column */
+    if (table->num_columns == 0) {
+        /* Auto-create columns if none exist */
+        table->num_columns = 1;
+        strcpy(table->columns[0].name, "value");
+        table->columns[0].type = COL_TEXT;
+    }
+
+    /* Skip to VALUES */
+    p = skip_whitespace(p);
+    if (!keyword_match(p, "VALUES")) {
+        if (errmsg) *errmsg = "Expected VALUES in INSERT";
+        return SQLITE_ERROR;
+    }
+    p = skip_whitespace(p + 6);  /* Skip "VALUES" */
+
+    /* Find opening parenthesis */
+    while (*p && *p != '(') p++;
+    if (*p != '(') {
+        if (errmsg) *errmsg = "Expected ( after VALUES";
+        return SQLITE_ERROR;
+    }
+    p++;  /* Skip '(' */
+
+    /* Allocate row */
+    if (table->num_rows >= table->row_capacity) {
+        int new_capacity = table->row_capacity == 0 ? 10 : table->row_capacity * 2;
+        if (new_capacity > MAX_ROWS) new_capacity = MAX_ROWS;
+        if (table->num_rows >= MAX_ROWS) {
+            if (errmsg) *errmsg = "Too many rows";
+            return SQLITE_ERROR;
+        }
+        table->rows = (table_row_t *)riscos_realloc(table->rows,
+                                                     sizeof(table_row_t) * new_capacity);
+        if (!table->rows) {
+            if (errmsg) *errmsg = "Out of memory";
+            return SQLITE_ERROR;
+        }
+        table->row_capacity = new_capacity;
+    }
+
+    /* Allocate values array for this row */
+    new_row.values = (char **)riscos_malloc(sizeof(char *) * table->num_columns);
+    if (!new_row.values) {
+        if (errmsg) *errmsg = "Out of memory";
+        return SQLITE_ERROR;
+    }
+
+    /* Initialize all values to NULL */
+    for (i = 0; i < table->num_columns; i++) {
+        new_row.values[i] = NULL;
+    }
+
+    /* Parse values */
+    val_idx = 0;
+    while (*p && *p != ')' && val_idx < table->num_columns) {
+        p = skip_whitespace(p);
+
+        /* Extract value (simple string or number) */
+        i = 0;
+        if (*p == '\'' || *p == '"') {
+            /* Quoted string */
+            char quote = *p++;
+            while (*p && *p != quote && i < 255) {
+                value_buf[i++] = *p++;
+            }
+            if (*p == quote) p++;
+        } else {
+            /* Unquoted value */
+            while (*p && *p != ',' && *p != ')' && i < 255) {
+                value_buf[i++] = *p++;
+            }
+        }
+        value_buf[i] = '\0';
+
+        /* Trim whitespace from value */
+        i = strlen(value_buf);
+        while (i > 0 && isspace(value_buf[i-1])) i--;
+        value_buf[i] = '\0';
+
+        /* Allocate and store value */
+        new_row.values[val_idx] = (char *)riscos_malloc(strlen(value_buf) + 1);
+        if (new_row.values[val_idx]) {
+            strcpy(new_row.values[val_idx], value_buf);
+        }
+
+        val_idx++;
+
+        /* Skip comma */
+        p = skip_whitespace(p);
+        if (*p == ',') p++;
+    }
+
+    /* Add row to table */
+    table->rows[table->num_rows++] = new_row;
+
+    return SQLITE_OK;
+}
+
+/*
+** Execute SELECT statement
+** Simple parser for: SELECT * FROM table [WHERE condition]
+** For now, we support: SELECT * FROM table
+*/
+static int execute_select(sqlite *db, const char *sql,
+                          int (*callback)(void*,int,char**,char**),
+                          void *arg, char **errmsg)
+{
+    const char *p;
+    char table_name[MAX_TABLE_NAME];
+    table_def_t *table;
+    char **col_names;
+    int i, r;
+
+    p = sql;
+    /* Skip "SELECT" */
+    p = skip_whitespace(p + 6);  /* Skip "SELECT" */
+
+    /* For now, expect * (select all) */
+    p = skip_whitespace(p);
+    if (*p != '*') {
+        /* Simple column list support - skip to FROM */
+        while (*p && !keyword_match(p, "FROM")) {
+            p++;
+        }
+    } else {
+        p++;  /* Skip '*' */
+    }
+
+    /* Skip to FROM */
+    p = skip_whitespace(p);
+    if (!keyword_match(p, "FROM")) {
+        if (errmsg) *errmsg = "Expected FROM in SELECT";
+        return SQLITE_ERROR;
+    }
+    p = skip_whitespace(p + 4);  /* Skip "FROM" */
+
+    /* Extract table name */
+    i = 0;
+    while (*p && !isspace(*p) && *p != ';' && i < MAX_TABLE_NAME - 1) {
+        table_name[i++] = *p++;
+    }
+    table_name[i] = '\0';
+
+    if (i == 0) {
+        if (errmsg) *errmsg = "Missing table name in SELECT";
+        return SQLITE_ERROR;
+    }
+
+    /* Find table */
+    table = find_table(db, table_name);
+    if (!table) {
+        if (errmsg) *errmsg = "Table not found";
+        return SQLITE_ERROR;
+    }
+
+    /* If table has no columns, return empty result */
+    if (table->num_columns == 0) {
+        return SQLITE_OK;
+    }
+
+    /* Prepare column names array */
+    col_names = (char **)riscos_malloc(sizeof(char *) * table->num_columns);
+    if (!col_names) {
+        if (errmsg) *errmsg = "Out of memory";
+        return SQLITE_ERROR;
+    }
+
+    for (i = 0; i < table->num_columns; i++) {
+        col_names[i] = table->columns[i].name;
+    }
+
+    /* Call callback for each row */
+    if (callback) {
+        for (r = 0; r < table->num_rows; r++) {
+            int result = callback(arg, table->num_columns,
+                                 table->rows[r].values, col_names);
+            if (result != 0) {
+                /* Callback requested abort */
+                riscos_free(col_names);
+                return SQLITE_ABORT;
+            }
+        }
+    }
+
+    riscos_free(col_names);
+    return SQLITE_OK;
+}
+
+/*
 ** Parse and execute SQL statement
 */
-static int parse_sql_statement(sqlite *db, const char *sql, char **errmsg)
+static int parse_sql_statement(sqlite *db, const char *sql,
+                               int (*callback)(void*,int,char**,char**),
+                               void *arg, char **errmsg)
 {
     const char *p;
 
@@ -340,13 +624,9 @@ static int parse_sql_statement(sqlite *db, const char *sql, char **errmsg)
             return execute_drop_table(db, sql, errmsg);
         }
     } else if (keyword_match(p, "INSERT")) {
-        /* Placeholder for INSERT implementation */
-        if (errmsg) *errmsg = "INSERT not yet fully implemented";
-        return SQLITE_OK;
+        return execute_insert(db, sql, errmsg);
     } else if (keyword_match(p, "SELECT")) {
-        /* Placeholder for SELECT implementation */
-        if (errmsg) *errmsg = "SELECT not yet fully implemented";
-        return SQLITE_OK;
+        return execute_select(db, sql, callback, arg, errmsg);
     } else if (keyword_match(p, "UPDATE")) {
         /* Placeholder for UPDATE implementation */
         if (errmsg) *errmsg = "UPDATE not yet fully implemented";
@@ -393,7 +673,7 @@ int sqlite_exec(sqlite *db, const char *sql,
     }
 
     /* Parse and execute the SQL statement */
-    result = parse_sql_statement(db, sql, errmsg);
+    result = parse_sql_statement(db, sql, callback, arg, errmsg);
 
     return result;
 }
