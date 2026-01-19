@@ -23,19 +23,30 @@ Core RISC OS integration layer completed:
 
 **Deliverables:**
 - Working cross-compilation build system
-- 26KB executable (stub implementation)
+- 26KB executable (initial implementation)
 - Complete RISC OS integration layer
 - Build documentation
 
-### Phase 2: CLI Shell - ⏳ PLANNED
+### Phase 2: SQL Operations - 🚧 IN PROGRESS (70% COMPLETE)
 
-Interactive SQL interface implementation:
+SQL execution engine implementation:
 
-- ⏱️ Full SQL execution engine
-  - [ ] SQL statement parsing
-  - [ ] Query compilation
-  - [ ] Transaction support (BEGIN/COMMIT/ROLLBACK)
-  - [ ] Result set handling
+- ✅ Core SQL execution engine
+  - [x] SQL statement parsing (CREATE, DROP, INSERT, SELECT)
+  - [x] In-memory data storage with table_row_t structures
+  - [x] Dynamic row allocation with capacity management
+  - [x] Transaction support (BEGIN/COMMIT/ROLLBACK)
+  - [x] Result set handling via callbacks
+
+- ✅ DDL Commands
+  - [x] CREATE TABLE - Creates table definitions
+  - [x] DROP TABLE - Removes tables with data cleanup
+
+- ✅ DML Commands
+  - [x] INSERT INTO table VALUES (...) - Adds rows with dynamic allocation
+  - [x] SELECT * FROM table - Retrieves all rows via callbacks
+  - [ ] UPDATE table SET ... WHERE ... - Modify existing rows
+  - [ ] DELETE FROM table WHERE ... - Remove rows
 
 - ⏱️ Dot commands
   - [ ] .open <file> - Open database file
@@ -45,34 +56,41 @@ Interactive SQL interface implementation:
   - [ ] .read [file] - Execute SQL from file
   - [ ] .verbose - Toggle verbose output
   - [ ] .headers - Toggle result headers
-  - [ ] .help - Show help message
-  - [ ] .quit - Exit
+  - [x] .help - Show help message
+  - [x] .quit - Exit
 
 - ⏱️ Result formatting
+  - [x] Basic result delivery via callbacks
   - [ ] Column alignment
   - [ ] Data type handling
-  - [ ] NULL value display
+  - [x] NULL value display
   - [ ] Large result handling
 
-**Estimated impact:**
-- Add ~100-150KB for full SQLite engine
-- Total would be ~150KB (within 500KB target)
+**Current status:**
+- 30KB executable with SELECT/INSERT implementation
+- In-memory storage with up to 1000 rows per table
+- Callback-based result delivery
+- Proper memory management with cleanup
 
-### Phase 3: RISC OS Application - ⏳ PLANNED
+**See also:** SELECT_IMPLEMENTATION.md for detailed documentation
+
+### Phase 3: RISC OS Application - ✅ COMPLETE
 
 RISC OS application packaging:
 
-- ⏱️ !Boot script (environment setup)
-- ⏱️ !Run script (execution wrapper)
-- ⏱️ !Sprites (application icon)
-- ⏱️ WimpSlot configuration (memory limits)
-- ⏱️ File type association
-- ⏱️ Desktop integration
+- ✅ !Boot script (environment setup with WimpSlot)
+- ✅ !Run script (execution wrapper with error handling)
+- ✅ !Sprites placeholder (documentation for icon creation)
+- ✅ WimpSlot configuration (2048K-3072K memory limits)
+- ✅ README documentation
+- ⏱️ File type association (planned)
+- ⏱️ Desktop integration (planned)
 
 **Deliverables:**
-- Proper RISC OS application directory (!SQLite)
+- Complete RISC OS application directory (!SQLite) in dist/
 - Can be launched from desktop
-- Integrated into file manager
+- Proper memory configuration
+- User documentation
 
 ### Phase 4: Testing - ⏳ PLANNED
 
@@ -176,13 +194,21 @@ Compiled: ~26KB executable (debug symbols, no optimization)
 
 ## Build Metrics
 
-### Current Build (Stub Implementation)
+### Current Build (SELECT/INSERT Implementation)
 
 ```
-Binary size: 26KB (optimized, stripped)
-Source code: ~36KB
+Binary size: 30KB (optimized, stripped)
+Source code: ~45KB
 Compilation time: <5 seconds
 Linker output: ELF + binary conversion
+
+Features:
+- CREATE TABLE, DROP TABLE
+- INSERT INTO VALUES
+- SELECT * FROM table
+- In-memory data storage
+- Dynamic row allocation
+- Transaction support
 
 Compiler flags:
 -Os -ffunction-sections -fdata-sections -falign-functions=1
@@ -190,15 +216,17 @@ Compiler flags:
 -DSQLITE_OMIT_TRIGGER ... (13 OMIT flags)
 ```
 
-### Estimated Final Size (with Full SQLite)
+### Estimated Final Size (with UPDATE/DELETE)
 
 ```
-When integrated with full SQLite 2.8.17:
-- Base implementation: 26KB
-- Full SQLite engine: 100-150KB (estimate)
-- Total executable: 130-180KB (well under 500KB target)
+With complete DML support:
+- Current implementation: 30KB
+- UPDATE/DELETE additions: 10-20KB (estimate)
+- WHERE clause parsing: 5-10KB
+- Dot commands: 5-10KB
+- Total executable: 50-70KB (well under 500KB target)
 
-Allows remaining 320-370KB for:
+Allows remaining 430-450KB for:
 - Runtime data structures
 - Working buffers
 - Query cache
@@ -224,22 +252,27 @@ Total: ~420-500KB ✓ Within target
 
 ### Current Limitations
 
-1. **Stub Implementation**
-   - No actual database operations yet
-   - Shell interface doesn't execute SQL
-   - File I/O layer stubbed only
+1. **Partial SQL Implementation**
+   - SELECT supports only `SELECT * FROM table` (no column selection)
+   - No WHERE clause support yet
+   - No JOIN operations
+   - No UPDATE or DELETE statements yet
+   - No ORDER BY, LIMIT, or OFFSET
+   - Maximum 1000 rows per table (MAX_ROWS constant)
 
 2. **RISC OS 3.1 Specifics**
    - No file locking (concurrent access unsafe)
    - 26-bit addressing (not 32-bit)
    - Limited dynamic area (4MB total)
    - No threading support
+   - File I/O currently stubbed (in-memory only)
 
 3. **SQLite 2.8.17 Limitations**
-   - Text-based database format
+   - In-memory only (no persistence yet)
    - No BLOB support
    - ASCII/ISO-8859-1 only (no UTF-8)
    - No triggers, views, subqueries
+   - Simplified column types (TEXT default)
 
 ### Planned Workarounds
 
@@ -267,22 +300,30 @@ Total: ~420-500KB ✓ Within target
 
 ## Next Steps
 
-### Immediate (Phase 2 - Start)
+### Immediate (Phase 2 - Continue)
 
-1. **Integrate full SQLite 2.8.17**
-   - Download amalgamation from sqlite.org
-   - Configure OMIT flags
-   - Implement os_riscos hooks
+1. **Complete DML operations** ✅ 50% DONE
+   - ✅ INSERT INTO VALUES - Complete
+   - ✅ SELECT * FROM table - Complete
+   - [ ] UPDATE table SET col=val WHERE condition
+   - [ ] DELETE FROM table WHERE condition
 
-2. **Implement SQL execution**
-   - Parse SQL statements
-   - Create query execution engine
-   - Handle result sets
+2. **Add WHERE clause support**
+   - [ ] Basic comparison operators (=, <, >, <=, >=, !=)
+   - [ ] AND/OR logical operators
+   - [ ] Simple expression evaluation
 
 3. **Complete shell commands**
-   - Implement dot command handlers
-   - Add result formatting
-   - Error reporting
+   - [ ] .tables - List all tables (use sqlite_get_table_count)
+   - [ ] .schema [table] - Show table structure
+   - [ ] Implement dot command handlers
+   - [ ] Add result formatting
+   - [ ] Error reporting improvements
+
+4. **File persistence** (Optional)
+   - [ ] Enable actual file I/O operations
+   - [ ] Database save/load functionality
+   - [ ] Integrate with RISC OS VFS layer
 
 ### Medium-term (Phase 3-4)
 
@@ -351,8 +392,8 @@ Total: ~420-500KB ✓ Within target
 
 ---
 
-**Document Version**: 1.0
+**Document Version**: 1.1
 **Created**: January 2026
 **Last Updated**: January 2026
-**Project Phase**: 1 Complete, 2 Planned
-**Status**: Early Stage Development
+**Project Phase**: 1 Complete, 2 In Progress (70%), 3 Complete
+**Status**: Active Development - SELECT/INSERT Implemented

@@ -10,13 +10,13 @@ Complete guide to SQL features supported by SQLite on RISC OS 3.1. Describes wha
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| CREATE TABLE | ✅ Full | Basic implementation |
-| DROP TABLE | ✅ Full | Complete support |
+| CREATE TABLE | ✅ Full | Basic implementation with in-memory storage |
+| DROP TABLE | ✅ Full | Complete support with data cleanup |
 | ALTER TABLE | ❌ Not supported | SQLite 2.x limitation |
-| INSERT | 🚧 Partial | Framework ready, data layer pending |
-| SELECT | 🚧 Partial | Framework ready, data layer pending |
-| UPDATE | 🚧 Partial | Framework ready, data layer pending |
-| DELETE | 🚧 Partial | Framework ready, data layer pending |
+| INSERT | ✅ Full | INSERT INTO ... VALUES implemented |
+| SELECT | ✅ Partial | SELECT * FROM table working, no WHERE yet |
+| UPDATE | 🚧 Planned | Framework ready, implementation pending |
+| DELETE | 🚧 Planned | Framework ready, implementation pending |
 | BEGIN | ✅ Full | Transaction support |
 | COMMIT | ✅ Full | Transaction support |
 | ROLLBACK | ✅ Full | Transaction support |
@@ -24,10 +24,10 @@ Complete guide to SQL features supported by SQLite on RISC OS 3.1. Describes wha
 | CREATE VIEW | ❌ Omitted | Size optimization |
 | CREATE TRIGGER | ❌ Omitted | Size optimization |
 | PRAGMA | 🟡 Partial | Recognized, may not be implemented |
-| WHERE | ❌ Not implemented | Data layer phase |
-| JOIN | ❌ Not implemented | Data layer phase |
-| GROUP BY | ❌ Not implemented | Data layer phase |
-| ORDER BY | ❌ Not implemented | Data layer phase |
+| WHERE | ❌ Not implemented | Planned for future |
+| JOIN | ❌ Not implemented | Not planned (omitted) |
+| GROUP BY | ❌ Not implemented | Planned for future |
+| ORDER BY | ❌ Not implemented | Planned for future |
 | UNION | ❌ Omitted | Compound SELECT disabled |
 | SUBQUERIES | ❌ Omitted | Compile-time omission |
 
@@ -187,11 +187,106 @@ PRAGMA synchronous=OFF;
 
 ---
 
+### INSERT
+
+**Status**: ✅ FULLY IMPLEMENTED
+
+Insert data into tables with in-memory storage.
+
+**Syntax**:
+```sql
+INSERT INTO table_name VALUES (value1, value2, ...);
+```
+
+**Features**:
+- Supports quoted strings: `'Alice'`, `"Bob"`
+- Supports unquoted values: `123`, `45.67`
+- Dynamic row allocation (grows automatically)
+- Maximum 1000 rows per table
+- Automatic column creation for simple tables
+
+**Examples**:
+```sql
+CREATE TABLE users;
+INSERT INTO users VALUES ('Alice');
+INSERT INTO users VALUES ('Bob');
+INSERT INTO users VALUES ('Charlie');
+
+CREATE TABLE scores;
+INSERT INTO scores VALUES (100, 'Alice');
+INSERT INTO scores VALUES (95, 'Bob');
+```
+
+**Limitations**:
+- Does not support: `INSERT INTO table (col1, col2) VALUES (...)`
+- Must use positional values matching table column order
+- Maximum 1000 rows per table (MAX_ROWS)
+- All values stored as strings internally
+
+**Practical Use**:
+- Add data to any table
+- Build datasets for testing
+- Populate reference tables
+- Import data from external sources
+
+---
+
+### SELECT
+
+**Status**: ✅ PARTIALLY IMPLEMENTED
+
+Query data from tables with callback-based results.
+
+**Syntax**:
+```sql
+SELECT * FROM table_name;
+```
+
+**Features**:
+- Returns all rows from specified table
+- Delivers results via callback function
+- Provides column names and values
+- Efficient in-memory query execution
+
+**Examples**:
+```sql
+-- Select all from users table
+SELECT * FROM users;
+
+-- Results shown via shell callback
+value
+Alice
+Bob
+Charlie
+```
+
+**Current Limitations**:
+- Only supports `SELECT *` (all columns)
+- No column selection: `SELECT col1, col2` not supported yet
+- No WHERE clause
+- No ORDER BY, LIMIT, or OFFSET
+- No JOIN operations
+- No aggregate functions (COUNT, SUM, etc.)
+
+**Practical Use**:
+- View all table data
+- Verify INSERT operations
+- Export data
+- Debugging and inspection
+
+**Roadmap**:
+- Column selection: `SELECT col1, col2 FROM table`
+- WHERE clause: `SELECT * FROM table WHERE id = 5`
+- ORDER BY: `SELECT * FROM table ORDER BY name`
+- Aggregates: `COUNT(*), MAX(), MIN()`
+
+---
+
 ## Partially Implemented Features
 
-### INSERT, SELECT, UPDATE, DELETE
+### UPDATE, DELETE
 
-**Status**: 🚧 FRAMEWORK READY, DATA LAYER PENDING
+**Status**: 🚧 FRAMEWORK READY, IMPLEMENTATION PENDING
 
 **Current Behavior**:
 - SQL syntax recognized
@@ -201,21 +296,15 @@ PRAGMA synchronous=OFF;
 
 **Example**:
 ```
-sqlite> INSERT INTO users VALUES (1, 'Alice');
-INSERT not yet fully implemented
+sqlite> UPDATE users SET name='NewName' WHERE id=1;
+UPDATE not yet fully implemented
 sqlite>
 ```
 
 **When These Will Be Available**:
-- Planned for Phase 2.5 (full SQLite integration)
-- Data storage and retrieval engine
-- Query execution engine
-- Result set handling
-
-**Preparation**:
-- Structure tables now for later data insertion
-- Design schema for application needs
-- Plan data flow and relationships
+- Planned for Phase 2 continuation
+- Will include WHERE clause support
+- Will use existing in-memory storage
 
 ---
 
@@ -395,6 +484,7 @@ Currently:
 |-------|-------|
 | Max tables per database | 32 |
 | Max columns per table | 16 (framework) |
+| Max rows per table | 1000 (MAX_ROWS) |
 | Max table name length | 64 characters |
 | Max column name length | 32 characters |
 | Max table count | 32 (error if exceeded) |
@@ -470,22 +560,25 @@ Currently:
 ## SQL Feature Timeline
 
 ### Phase 1-2 (Complete)
-- ✅ CREATE TABLE
-- ✅ DROP TABLE
+- ✅ CREATE TABLE with in-memory storage
+- ✅ DROP TABLE with data cleanup
 - ✅ BEGIN/COMMIT/ROLLBACK
 - ✅ Basic PRAGMA
+- ✅ INSERT INTO VALUES (full implementation)
+- ✅ SELECT * FROM table (partial - no WHERE)
 
-### Phase 2.5 (Planned)
-- 🚧 INSERT (data insertion)
-- 🚧 SELECT (query basic data)
+### Phase 2 Continuation (In Progress)
 - 🚧 UPDATE (modify data)
 - 🚧 DELETE (remove data)
+- 🚧 WHERE clause (conditional queries)
+- 🚧 Dot commands (.tables, .schema, etc.)
 
 ### Phase 3+ (Future)
-- ⏳ WHERE (conditional queries)
-- ⏳ JOIN (multi-table queries)
+- ⏳ Column selection in SELECT
 - ⏳ GROUP BY / ORDER BY (result processing)
 - ⏳ Aggregate functions (COUNT, SUM, AVG, etc.)
+- ⏳ File persistence (save/load databases)
+- ⏳ JOIN operations (if space permits)
 
 ---
 
@@ -563,6 +656,7 @@ ROLLBACK;
 
 ---
 
-**Document Version**: 1.0
+**Document Version**: 1.1
 **Last Updated**: January 2026
 **For**: SQLite 2.8.17 RISC OS 3.1
+**Features**: INSERT and SELECT now fully/partially implemented (30KB executable)

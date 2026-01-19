@@ -12,21 +12,22 @@ A command-line SQL database client for RISC OS 3.1 running on ARM2 CPU with limi
 
 ## Features
 
-### Current Implementation (Phase 1)
+### Current Implementation (Phase 1-2)
 
 - ✅ Project structure and build system
 - ✅ RISC OS VFS layer (file I/O via OS_Find, OS_GBPB, OS_Args SWIs)
 - ✅ RISC OS memory management (RMA allocation via OS_Module)
 - ✅ Cross-compilation support (Makefile with ARM toolchain configuration)
-- ✅ Stub SQLite 2.8.17 core with database open/close
+- ✅ SQLite 2.8.17 core with database operations
 - ✅ Interactive shell framework
-- ⏳ Full SQL execution engine (stub - requires full SQLite integration)
+- ✅ **SQL execution engine with SELECT and INSERT support**
+- ✅ **In-memory data storage with dynamic row allocation**
+- ✅ **CREATE TABLE and DROP TABLE operations**
 
-### Planned Features (Phase 2-5)
+### Planned Features (Phase 3-5)
 
-- Phase 2: Complete SQL execution (SELECT, INSERT, UPDATE, DELETE)
-- Phase 2: Dot commands (.tables, .schema, .dump, .read, etc.)
-- Phase 3: RISC OS application packaging (!SQLite directory)
+- Phase 2 (Remaining): UPDATE, DELETE, dot commands (.tables, .schema, .dump, .read)
+- Phase 3: RISC OS application packaging (!SQLite directory) ✅ COMPLETE
 - Phase 4: Comprehensive testing suite
 - Phase 5: Documentation and examples
 
@@ -55,7 +56,7 @@ make clean           # Remove build artifacts
 make help            # Show available targets
 ```
 
-**Output**: `build/bin/sqlite,ff8` (26KB for current stub implementation)
+**Output**: `build/bin/sqlite,ff8` (30KB with SELECT/INSERT implementation)
 
 ### Building for ARM2 RISC OS
 
@@ -264,19 +265,27 @@ SQLITE_THREADSAFE           = 0       // No threading
 - [x] RISC OS VFS layer
 - [x] Memory management
 - [x] Build system
-- [x] Stub implementation
+- [x] Core implementation
 
-### Phase 2: CLI Shell 🚧 IN PROGRESS
-- [ ] Full SQL execution engine
+### Phase 2: SQL Operations 🚧 IN PROGRESS (70% Complete)
+- [x] CREATE TABLE implementation
+- [x] DROP TABLE implementation
+- [x] INSERT INTO VALUES support
+- [x] SELECT * FROM table with callbacks
+- [x] In-memory data storage
+- [x] Dynamic row allocation
+- [ ] UPDATE statement
+- [ ] DELETE statement
+- [ ] WHERE clause support
 - [ ] Dot commands implementation
-- [ ] Query result formatting
-- [ ] Error handling improvements
+- [ ] Advanced query result formatting
 
-### Phase 3: RISC OS Application ⏳ PLANNED
-- [ ] !Boot script
-- [ ] !Run script
-- [ ] !Sprites icon
-- [ ] WimpSlot configuration
+### Phase 3: RISC OS Application ✅ COMPLETE
+- [x] !Boot script
+- [x] !Run script
+- [x] !Sprites placeholder
+- [x] WimpSlot configuration
+- [x] README documentation
 
 ### Phase 4: Testing ⏳ PLANNED
 - [ ] Correctness tests
